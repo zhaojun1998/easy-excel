@@ -1,18 +1,16 @@
 package im.zhaojun.excel.annotation;
 
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Target(ElementType.FIELD)
+@Target(ElementType.ANNOTATION_TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface EasyExcelProperty {
+public @interface EasyExcelMapping {
 
-    String[] value() default {""};
+    String key();
 
-    int index();
+    String value();
 
-    String format() default "";
 }
