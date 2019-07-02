@@ -1,6 +1,5 @@
 package im.zhaojun.excel.util;
 
-import cn.hutool.core.util.StrUtil;
 import im.zhaojun.excel.annotation.EasyExcelSheet;
 import im.zhaojun.excel.annotation.FieldType;
 import org.apache.poi.ss.usermodel.DateUtil;
@@ -22,67 +21,25 @@ public class ExcelParseUtil {
 
     private static final Logger log = LoggerFactory.getLogger(ExcelParseUtil.class);
 
-    public static Object getDataValue(FieldType fieldType, String value, SharedStringsTable sharedStringsTable, String numFmtString) {
+    public static Object getDataValue(FieldType fieldType, String value, SharedStringsTable sharedStringsTable) {
         if (null == value) {
             return null;
         }
-        Object result;
         switch (fieldType) {
-            case BOOLEAN:
-                result = (value.charAt(0) != '0');
-                break;
-            case ERROR:
-                result = StrUtil.format("\\\"ERROR: {} ", value);
-                break;
             case STRING:
-                try {
-                    final int index = Integer.parseInt(value);
-                    result = new XSSFRichTextString(sharedStringsTable.getEntryAt(index)).getString();
-                } catch (NumberFormatException e) {
-                    result = value;
-                }
-                break;
-            case NUMBER:
-                result = getNumberValue(value, numFmtString);
-                break;
+                int idx = Integer.parseInt(value);
+                return new XSSFRichTextString(sharedStringsTable.getEntryAt(idx)).getString();
             case DATE:
-                try {
-                    result = DateUtil.getJavaDate(Double.parseDouble(value));
-                } catch (Exception e) {
-                    result = value;
-                }
-                break;
+                return DateUtil.getJavaDate(Double.parseDouble(value));
+            case BOOLEAN:
+                return (value.charAt(0) == '0' ? "FALSE" : "TRUE");
+            case ERROR:
+                return "\\\"ERROR: " +  value;
             default:
-                result = value;
-                break;
+                return value;
         }
-        return result;
     }
 
-
-    /**
-     * 获取数字类型值
-     *
-     * @param value 值
-     * @param numFmtString 格式
-     * @return 数字，可以是Double、Long
-     * @since 4.1.0
-     */
-    private static Number getNumberValue(String value, String numFmtString) {
-        if(StrUtil.isBlank(value)) {
-            return null;
-        }
-        double numValue = Double.parseDouble(value);
-        // 普通数字
-        if (null != numFmtString && numFmtString.indexOf(StrUtil.C_DOT) < 0) {
-            final long longPart = (long) numValue;
-            if (longPart == numValue) {
-                // 对于无小数部分的数字类型，转为Long
-                return longPart;
-            }
-        }
-        return numValue;
-    }
 
     /**
      * 根据 Class 类获取 Excel Sheet.
@@ -111,7 +68,6 @@ public class ExcelParseUtil {
 
         return easyExcelSheet.startRow();
     }
-
 
     public static Date parseDate(String value, String format) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);

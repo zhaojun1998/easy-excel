@@ -1,7 +1,5 @@
 package im.zhaojun.excel.analysis;
 
-import cn.hutool.core.convert.Convert;
-import cn.hutool.core.util.StrUtil;
 import im.zhaojun.excel.annotation.EasyExcelField;
 import im.zhaojun.excel.annotation.EasyExcelMapping;
 import im.zhaojun.excel.annotation.EasyExcelMappings;
@@ -12,7 +10,6 @@ import im.zhaojun.excel.util.ExcelParseUtil;
 import org.apache.poi.hssf.util.CellReference;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
-import org.apache.poi.ss.usermodel.BuiltinFormats;
 import org.apache.poi.xssf.eventusermodel.XSSFReader;
 import org.apache.poi.xssf.model.SharedStringsTable;
 import org.apache.poi.xssf.model.StylesTable;
@@ -60,9 +57,6 @@ public class XlsxSaxAnalyser extends DefaultHandler {
 
     //共享字符串表
     private SharedStringsTable sharedStringsTable;
-
-    // 单元格存储的格式化字符串, nmtFmt 的 formatCode 属性的值
-    private String numFmtString;
 
     // 上一次的内容
     private String curContent;
@@ -123,10 +117,7 @@ public class XlsxSaxAnalyser extends DefaultHandler {
             // 根据 rId# 获取 sheet 页
             sheetInputStream = xssfReader.getSheet(RID_PREFIX + sheetId);
             InputSource sheetSource = new InputSource(sheetInputStream);
-
-            excelRowHandler.before();
             xmlReader.parse(sheetSource);
-            excelRowHandler.doAfterAll();
 
         } catch (IOException | ParserConfigurationException | OpenXML4JException | SAXException e) {
             e.printStackTrace();
@@ -164,6 +155,10 @@ public class XlsxSaxAnalyser extends DefaultHandler {
         return parser;
     }
 
+    @Override
+    public void startDocument() {
+        excelRowHandler.before();
+    }
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
@@ -191,31 +186,35 @@ public class XlsxSaxAnalyser extends DefaultHandler {
 
     @Override
     public void endElement(String uri, String localName, String qName) {
-        final String contentStr = StrUtil.trim(curContent);
+        String contentStr = curContent.trim();
 
         // 如果是单元格元素
         if (C_ELEMENT.equals(qName)) {
             // cell 标签
-            Object value = ExcelParseUtil.getDataValue(curFieldType, contentStr, sharedStringsTable, this.numFmtString);
+            Object value = ExcelParseUtil.getDataValue(curFieldType, contentStr, sharedStringsTable);
             rowCellList.add(curCol, value);
         } else if (ROW_ELEMENT.equals(qName)) {
-            if (curRow > startRow) {
+            if (curRow >= startRow) {
                 excelRowHandler.execute(convertToObject());
             }
             rowCellList.clear();
         }
     }
 
+    @Override
+    public void endDocument() {
+        excelRowHandler.doAfterAll();
+    }
 
     private void setCellType(Attributes attribute) {
         // 重置 numFmtIndex, numFmtString 的值
         // 单元格存储格式的索引, 对应 style.xml 中的 numFmts 元素的子元素索引
         int numFmtIndex;
-        numFmtString = "";
+        String numFmtString = "";
         this.curFieldType = FieldType.of(attribute.getValue(T_ATTR_VALUE));
 
         // 获取单元格的 xf 索引, 对应 style.xml 中 cellXfs 的子元素 xf 的第几个
-        final String xfIndexStr = attribute.getValue(S_ATTR_VALUE);
+        String xfIndexStr = attribute.getValue(S_ATTR_VALUE);
         // 判断是否为日期类型
         if (xfIndexStr != null) {
             int xfIndex = Integer.parseInt(xfIndexStr);
@@ -225,12 +224,12 @@ public class XlsxSaxAnalyser extends DefaultHandler {
 
             if (numFmtString == null) {
                 curFieldType = FieldType.EMPTY;
-                numFmtString = BuiltinFormats.getBuiltinFormat(numFmtIndex);
             } else if (org.apache.poi.ss.usermodel.DateUtil.isADateFormat(numFmtIndex, numFmtString)) {
                 curFieldType = FieldType.DATE;
             }
         }
     }
+
 
     /**
      * 将类转化为业务类
@@ -250,13 +249,11 @@ public class XlsxSaxAnalyser extends DefaultHandler {
         } catch (IllegalAccessException | InstantiationException e) {
             e.printStackTrace();
         }
-
         return obj;
     }
 
 
     public <T> Map<Integer, Field> getFieldMap(Field[] fields) {
-
         Map<Integer, Field> fieldMap = new HashMap<>();
 
         for (Field field : fields) {
@@ -270,7 +267,6 @@ public class XlsxSaxAnalyser extends DefaultHandler {
 
 
     private Map<String, Map<String, String>> getFieldMapping(Field[] fields) {
-
         Map<String, Map<String, String>> fieldMapping = new HashMap<>();
 
         for (Field field : fields) {
@@ -290,7 +286,6 @@ public class XlsxSaxAnalyser extends DefaultHandler {
                 fieldMapping.put(field.getName(), map);
             }
         }
-
         return fieldMapping;
     }
 
@@ -302,10 +297,9 @@ public class XlsxSaxAnalyser extends DefaultHandler {
      * @return          转换后的值
      */
     private Object parseValueWithFieldType(Field field, Object obj) {
-
         Map<String, String> fieldMap = fieldMapping.get(field.getName());
         if (fieldMap != null) {
-            obj = fieldMap.get(Convert.toStr(obj));
+            obj = fieldMap.get(obj);
         }
 
         Class<?> type = field.getType();
@@ -324,27 +318,28 @@ public class XlsxSaxAnalyser extends DefaultHandler {
     }
 
 
-    private Object convertToBasicType(Class<?> fieldType, Object cellObj) {
+    /**
+     * 将数据转化为指定数据类型.
+     */
+    private Object convertToBasicType(Class<?> fieldType, Object obj) {
         if (Byte.class.equals(fieldType) || Byte.TYPE.equals(fieldType)) {
-            return Convert.toByte(cellObj);
-//            if (objIsNumber(cellObj)) return convertNumber(cellObj).byteValue();
-//            else if (objIsString(cellObj)) return Byte.valueOf(convertString(cellObj));
+            return Byte.valueOf(ExcelParseUtil.convertString(obj));
         } else if (Boolean.class.equals(fieldType) || Boolean.TYPE.equals(fieldType)) {
-            return Convert.toBool(cellObj);
+            return Boolean.valueOf(ExcelParseUtil.convertString(obj));
         } else if (String.class.equals(fieldType)) {
-            return Convert.toStr(cellObj);
+            return ExcelParseUtil.convertString(obj);
         } else if (Short.class.equals(fieldType) || Short.TYPE.equals(fieldType)) {
-            return Convert.toShort(cellObj);
+            return Short.valueOf(ExcelParseUtil.convertString(obj));
         } else if (Integer.class.equals(fieldType) || Integer.TYPE.equals(fieldType)) {
-            return Convert.toInt(cellObj);
+            return Integer.valueOf(ExcelParseUtil.convertString(obj));
         } else if (Long.class.equals(fieldType) || Long.TYPE.equals(fieldType)) {
-            return Convert.toLong(cellObj);
+            return Long.valueOf(ExcelParseUtil.convertString(obj));
         } else if (Float.class.equals(fieldType) || Float.TYPE.equals(fieldType)) {
-            return Convert.toFloat(cellObj);
+            return Float.valueOf(ExcelParseUtil.convertString(obj));
         } else if (Double.class.equals(fieldType) || Double.TYPE.equals(fieldType)) {
-            return Convert.toDouble(cellObj);
+            return Double.valueOf(ExcelParseUtil.convertString(obj));
         } else {
-            throw new NotSupportTypeException("Illegal data type: " + fieldType + ", value: " + cellObj);
+            throw new NotSupportTypeException("Illegal data type: " + fieldType + ", value: " + obj);
         }
     }
 
