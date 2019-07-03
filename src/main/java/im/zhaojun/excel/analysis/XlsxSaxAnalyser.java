@@ -61,9 +61,9 @@ public class XlsxSaxAnalyser extends DefaultHandler {
     // 上一次的内容
     private String curContent;
 
-    private int curRow;
+    private Integer lastRowNum;
 
-    private short curCol;
+    private Short lastCellNum;
 
     private FieldType curFieldType;
 
@@ -83,7 +83,6 @@ public class XlsxSaxAnalyser extends DefaultHandler {
     // 字段映射 Map<fieldName, Map<key, value>>
     private Map<String, Map<String, String>> fieldMapping;
 
-
     public XlsxSaxAnalyser(ExcelRowHandler excelRowHandler, Class<?> clz) {
         this.excelRowHandler = excelRowHandler;
         this.clz = clz;
@@ -93,10 +92,10 @@ public class XlsxSaxAnalyser extends DefaultHandler {
     }
 
 
-    public void init() {
+    private void init() {
         fields = clz.getDeclaredFields();
-        fieldMap = getFieldMap(fields);
-        fieldMapping = getFieldMapping(fields);
+        fieldMap = getFieldMap();
+        fieldMapping = getFieldMapping();
     }
 
 
@@ -113,7 +112,6 @@ public class XlsxSaxAnalyser extends DefaultHandler {
             // 获取 共享字符串表 和 单元格样式表.
             this.stylesTable = xssfReader.getStylesTable();
             this.sharedStringsTable = xssfReader.getSharedStringsTable();
-
             // 根据 rId# 获取 sheet 页
             sheetInputStream = xssfReader.getSheet(RID_PREFIX + sheetId);
             InputSource sheetSource = new InputSource(sheetInputStream);
@@ -162,15 +160,36 @@ public class XlsxSaxAnalyser extends DefaultHandler {
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
+
+        // 行开始, 记录行号
+        if (ROW_ELEMENT.equals(qName)) {
+            lastRowNum = Integer.parseInt(attributes.getValue(R_ATTR));
+        }
+
         // 单元格元素
         if (C_ELEMENT.equals(qName)) {
 
-            // 获取行和列
+            // 获取列数
             String cellRef = attributes.getValue(R_ATTR);
             CellReference cellReference = new CellReference(cellRef);
+            short curCellNum = cellReference.getCol();
+            curCellNum += 1;  // 这里得到的序号是 从 0 开始的.
 
-            curCol = cellReference.getCol();
-            curRow = cellReference.getRow();
+            //空单元判断，添加空字符到list
+            if (lastCellNum != null) {
+                int gap = curCellNum - lastCellNum;
+                for (int i = 0; i < gap - 1; i++) {
+                    rowCellList.add(null);
+                }
+            } else {
+                // 第一个单元格可能不是在第一列
+                if (!"A1".equals(cellRef)) {
+                    for (int i = 0; i < curCellNum - 1; i++) {
+                        rowCellList.add(null);
+                    }
+                }
+            }
+            lastCellNum = curCellNum;
 
             setCellType(attributes);
         }
@@ -192,9 +211,10 @@ public class XlsxSaxAnalyser extends DefaultHandler {
         if (C_ELEMENT.equals(qName)) {
             // cell 标签
             Object value = ExcelParseUtil.getDataValue(curFieldType, contentStr, sharedStringsTable);
-            rowCellList.add(curCol, value);
+            rowCellList.add(value);
         } else if (ROW_ELEMENT.equals(qName)) {
-            if (curRow >= startRow) {
+            lastCellNum = null;
+            if (lastRowNum > startRow) {
                 excelRowHandler.execute(convertToObject());
             }
             rowCellList.clear();
@@ -244,7 +264,11 @@ public class XlsxSaxAnalyser extends DefaultHandler {
                 Field field = fieldEntry.getValue();
 
                 field.setAccessible(true);
-                field.set(obj, parseValueWithFieldType(field, rowCellList.get(key)));
+
+                Object o = rowCellList.get(key);
+                if (o != null) {
+                    field.set(obj, parseValueWithFieldType(field, o));
+                }
             }
         } catch (IllegalAccessException | InstantiationException e) {
             e.printStackTrace();
@@ -253,7 +277,7 @@ public class XlsxSaxAnalyser extends DefaultHandler {
     }
 
 
-    public <T> Map<Integer, Field> getFieldMap(Field[] fields) {
+    private  <T> Map<Integer, Field> getFieldMap() {
         Map<Integer, Field> fieldMap = new HashMap<>();
 
         for (Field field : fields) {
@@ -266,7 +290,7 @@ public class XlsxSaxAnalyser extends DefaultHandler {
     }
 
 
-    private Map<String, Map<String, String>> getFieldMapping(Field[] fields) {
+    private Map<String, Map<String, String>> getFieldMapping() {
         Map<String, Map<String, String>> fieldMapping = new HashMap<>();
 
         for (Field field : fields) {
