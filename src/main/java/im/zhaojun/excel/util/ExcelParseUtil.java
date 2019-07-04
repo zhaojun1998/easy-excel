@@ -2,6 +2,7 @@ package im.zhaojun.excel.util;
 
 import im.zhaojun.excel.annotation.EasyExcelSheet;
 import im.zhaojun.excel.annotation.FieldType;
+import im.zhaojun.excel.metadata.Sheet;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.xssf.model.SharedStringsTable;
 import org.apache.poi.xssf.usermodel.XSSFRichTextString;
@@ -12,17 +13,14 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
 
-/**
- * @author Zhao Jun
- * 2019/6/27 21:56
- */
 public class ExcelParseUtil {
 
     private static final Logger log = LoggerFactory.getLogger(ExcelParseUtil.class);
 
     public static Object getDataValue(FieldType fieldType, String value, SharedStringsTable sharedStringsTable) {
-        if (null == value) {
+        if (null == value || "".equals(value)) {
             return null;
         }
         switch (fieldType) {
@@ -44,58 +42,51 @@ public class ExcelParseUtil {
     /**
      * 根据 Class 类获取 Excel Sheet.
      */
-    public static int parseSheet(Class<?> clz) {
+    public static Sheet parseSheet(Class<?> clz) {
+        Sheet sheet = new Sheet();
+
+        sheet.setClazz(clz);
+
         EasyExcelSheet easyExcelSheet = clz.getDeclaredAnnotation(EasyExcelSheet.class);
 
         if (easyExcelSheet == null) {
             log.debug("未获取到注解, 默认解析第一个 sheet 页");
-            return 1;
+            log.debug("未获取到注解, 默认从第一行开始读取数据");
+            sheet.setSheetNo(1);
+            sheet.setStartRow(1);
+        } else {
+            log.debug("解析第 [{}] 个 sheet 页", easyExcelSheet.sheetIndex());
+            log.debug("从第 [{}] 行开始解析数据", easyExcelSheet.sheetIndex());
+            sheet.setSheetNo(easyExcelSheet.sheetIndex());
+            sheet.setStartRow(easyExcelSheet.startRow());
         }
-
-        return easyExcelSheet.sheetIndex();
+        return sheet;
     }
 
-    /**
-     * 根据 Class 类获取 Excel Sheet.
-     */
-    public static int parseStartRow(Class<?> clz) {
-        EasyExcelSheet easyExcelSheet = clz.getDeclaredAnnotation(EasyExcelSheet.class);
 
-        if (easyExcelSheet == null) {
-            log.debug("未获取到注解, 默认解析第一个 sheet 页");
-            return 1;
-        }
-
-        return easyExcelSheet.startRow();
-    }
 
     public static Date parseDate(String value, String format) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
         return Date.from(LocalDate.parse(value, formatter).atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 
-    public static Number convertNumber(Object object) {
-        return (Number) object;
+
+    public static boolean listElementIsNull(List list) {
+        for (Object o : list) {
+            if (o != null) {
+                return false;
+            }
+        }
+        return true;
     }
+
 
     public static String convertString(Object object) {
         return (String) object;
     }
 
-    public static boolean objIsNumber(Object object) {
-        return object instanceof Number;
-    }
 
     public static boolean objIsString(Object object) {
         return object instanceof String;
     }
-
-    public static boolean objIsBoolean(Object object) {
-        return object instanceof Boolean;
-    }
-
-    public static boolean objIsDate(Object object) {
-        return object instanceof Date;
-    }
-
 }
