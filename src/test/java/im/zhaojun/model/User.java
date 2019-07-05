@@ -1,34 +1,30 @@
 package im.zhaojun.model;
 
-import im.zhaojun.excel.annotation.EasyExcelProperty;
+import im.zhaojun.excel.annotation.EasyExcelField;
+import im.zhaojun.excel.annotation.EasyExcelMapping;
+import im.zhaojun.excel.annotation.EasyExcelMappings;
 import im.zhaojun.excel.annotation.EasyExcelSheet;
 
 import java.util.Date;
 
-@EasyExcelSheet(value = "学生名单", headRow = 1)
+@EasyExcelSheet(startRow = 1, sheetIndex = 1)
 public class User {
 
-    @EasyExcelProperty(index = 0)
+    @EasyExcelField(index = 0)
     private String username;
 
-    @EasyExcelProperty(index = 1)
-    private int age;
+    @EasyExcelField(index = 1)
+    private Integer age;
 
-    @EasyExcelProperty(index = 2)
-    private Date birthday;
+    @EasyExcelMappings({
+        @EasyExcelMapping(key = "男", value = "1"),
+        @EasyExcelMapping(key = "女", value = "0")
+    })
+    @EasyExcelField(index = 2)
+    private Integer sex;
 
-    @EasyExcelProperty(index = 3)
-    private String sex;
-
-    @Override
-    public String toString() {
-        return "User{" +
-                "username='" + username + '\'' +
-                ", age=" + age +
-                ", birthday=" + birthday +
-                ", sex='" + sex + '\'' +
-                '}';
-    }
+    @EasyExcelField(index = 3, format = "yyyy年MM月dd")
+    private Date createTime;
 
     public String getUsername() {
         return username;
@@ -38,27 +34,37 @@ public class User {
         this.username = username;
     }
 
-    public int getAge() {
+    public Integer getAge() {
         return age;
     }
 
-    public void setAge(int age) {
+    public void setAge(Integer age) {
         this.age = age;
     }
 
-    public Date getBirthday() {
-        return birthday;
-    }
-
-    public void setBirthday(Date birthday) {
-        this.birthday = birthday;
-    }
-
-    public String getSex() {
+    public Integer getSex() {
         return sex;
     }
 
-    public void setSex(String sex) {
+    public void setSex(Integer sex) {
         this.sex = sex;
+    }
+
+    public Date getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(Date createTime) {
+        this.createTime = createTime;
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "username='" + username + '\'' +
+                ", age=" + age +
+                ", sex=" + sex +
+                ", createTime=" + createTime +
+                '}';
     }
 }
