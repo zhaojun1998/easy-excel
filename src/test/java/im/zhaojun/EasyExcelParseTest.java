@@ -25,9 +25,10 @@ public class EasyExcelParseTest {
             }
 
             @Override
-            public void doAfterAll() {
+            public void doAfterAll(EasyExcelContext context) {
                 System.out.println("count:" + i);
+                System.out.println(context.getErrorInfoList());
             }
-        }, User.class);
+        }, User.class, false);
     }
 }

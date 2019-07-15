@@ -13,13 +13,18 @@ import java.io.InputStream;
 public class ExcelReader {
 
     public static void read(InputStream inputStream, EasyExcelRowHandler handler, Class<?> clz) {
+        read(inputStream, handler, clz, true);
+    }
+
+    public static void read(InputStream inputStream, EasyExcelRowHandler handler, Class<?> clz, boolean fastFail) {
         Sheet sheet = ExcelParseUtil.parseSheet(clz);
-        EasyExcelContext easyExcelContext = new EasyExcelContext(inputStream, sheet, handler);
+        EasyExcelContext easyExcelContext = new EasyExcelContext(inputStream, sheet, handler, fastFail);
         try {
             new XlsxSaxAnalyser(easyExcelContext).execute();
         } catch (IOException | OpenXML4JException e) {
             e.printStackTrace();
         }
     }
+
 
 }

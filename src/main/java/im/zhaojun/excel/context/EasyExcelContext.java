@@ -2,8 +2,10 @@ package im.zhaojun.excel.context;
 
 import im.zhaojun.excel.handler.EasyExcelRowHandler;
 import im.zhaojun.excel.metadata.Sheet;
+import im.zhaojun.excel.model.ErrorInfo;
 
 import java.io.InputStream;
+import java.util.List;
 
 public class EasyExcelContext {
 
@@ -17,10 +19,15 @@ public class EasyExcelContext {
 
     private Integer totalCount;
 
-    public EasyExcelContext(InputStream inputStream, Sheet currentSheet, EasyExcelRowHandler handler) {
+    private List<ErrorInfo> errorInfoList;
+
+    private boolean fastFail;
+
+    public EasyExcelContext(InputStream inputStream, Sheet currentSheet, EasyExcelRowHandler handler, boolean fastFail) {
         this.inputStream = inputStream;
         this.currentSheet = currentSheet;
         this.handler = handler;
+        this.fastFail = fastFail;
     }
 
     public Sheet getCurrentSheet() {
@@ -61,5 +68,21 @@ public class EasyExcelContext {
 
     public void setInputStream(InputStream inputStream) {
         this.inputStream = inputStream;
+    }
+
+    public List<ErrorInfo> getErrorInfoList() {
+        return errorInfoList;
+    }
+
+    public void setErrorInfoList(List<ErrorInfo> errorInfoList) {
+        this.errorInfoList = errorInfoList;
+    }
+
+    public boolean getFastFail() {
+        return fastFail;
+    }
+
+    public void setFastFail(boolean fastFail) {
+        this.fastFail = fastFail;
     }
 }

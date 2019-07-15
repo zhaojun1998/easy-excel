@@ -8,6 +8,6 @@ public abstract class EasyExcelRowHandler<T> {
 
     public abstract void execute(T t, EasyExcelContext context);
 
-    public void doAfterAll() {}
+    public void doAfterAll(EasyExcelContext context) {}
 
 }

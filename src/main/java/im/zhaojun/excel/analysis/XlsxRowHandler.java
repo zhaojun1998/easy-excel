@@ -1,6 +1,6 @@
 package im.zhaojun.excel.analysis;
 
-import im.zhaojun.excel.annotation.EasyExcelField;
+import im.zhaojun.excel.annotation.EasyExcelColumn;
 import im.zhaojun.excel.annotation.EasyExcelMapping;
 import im.zhaojun.excel.annotation.EasyExcelMappings;
 import im.zhaojun.excel.annotation.FieldType;
@@ -8,6 +8,7 @@ import im.zhaojun.excel.context.EasyExcelContext;
 import im.zhaojun.excel.exception.NotSupportTypeException;
 import im.zhaojun.excel.handler.EasyExcelRowHandler;
 import im.zhaojun.excel.metadata.Sheet;
+import im.zhaojun.excel.model.ErrorInfo;
 import im.zhaojun.excel.util.ExcelParseUtil;
 import org.apache.poi.hssf.util.CellReference;
 import org.apache.poi.xssf.model.SharedStringsTable;
@@ -28,6 +29,8 @@ public class XlsxRowHandler extends DefaultHandler {
     // 单元格内容
     private String curContent;
 
+    private String currCoordinate;
+
     private Integer lastRowNum;
 
     private Short lastCellNum;
@@ -42,7 +45,9 @@ public class XlsxRowHandler extends DefaultHandler {
     private Field[] fields;
 
     // 字段映射 Map<fieldName, Map<key, value>>
-    private Map<String, Map<String, String>> fieldMapping;
+    private Map<String, Map<String, String>> fieldMappingMap;
+
+    private Map<Field, EasyExcelColumn> fieldColumnMap;
 
     private Sheet currentSheet;
 
@@ -51,6 +56,8 @@ public class XlsxRowHandler extends DefaultHandler {
     private StylesTable stylesTable;
 
     private SharedStringsTable sharedStringsTable;
+
+    private List<ErrorInfo> errorInfoList = new ArrayList<>();
 
     public XlsxRowHandler(EasyExcelContext easyExcelContext, SharedStringsTable sharedStringsTable, StylesTable stylesTable) {
         this.sharedStringsTable = sharedStringsTable;
@@ -62,8 +69,9 @@ public class XlsxRowHandler extends DefaultHandler {
         easyExcelRowHandler = this.easyExcelContext.getHandler();
 
         fields = currentSheet.getClazz().getDeclaredFields();
+        fieldColumnMap = getFieldColumnMap();
         cellFieldMap = getCellFieldMap();
-        fieldMapping = getFieldMapping();
+        fieldMappingMap = getFieldMappingMap();
     }
 
 
@@ -86,8 +94,8 @@ public class XlsxRowHandler extends DefaultHandler {
         if (C_ELEMENT.equals(qName)) {
 
             // 获取列数
-            String cellRef = attributes.getValue(R_ATTR);
-            CellReference cellReference = new CellReference(cellRef);
+            currCoordinate = attributes.getValue(R_ATTR);
+            CellReference cellReference = new CellReference(currCoordinate);
             short curCellNum = cellReference.getCol();
             curCellNum += 1;  // 这里得到的序号是 从 0 开始的.
 
@@ -99,7 +107,7 @@ public class XlsxRowHandler extends DefaultHandler {
                 }
             } else {
                 // 第一个单元格可能不是在第一列
-                if (!"A1".equals(cellRef)) {
+                if (!"A1".equals(currCoordinate)) {
                     for (int i = 0; i < curCellNum - 1; i++) {
                         rowCellList.add(null);
                     }
@@ -130,6 +138,7 @@ public class XlsxRowHandler extends DefaultHandler {
             rowCellList.add(value);
         } else if (ROW_ELEMENT.equals(qName)) {
             lastCellNum = null;
+            easyExcelContext.setErrorInfoList(errorInfoList);
             if (lastRowNum > currentSheet.getStartRow()) {
                 easyExcelRowHandler.execute(convertToObject(), this.easyExcelContext);
             }
@@ -139,7 +148,7 @@ public class XlsxRowHandler extends DefaultHandler {
 
     @Override
     public void endDocument() {
-        easyExcelRowHandler.doAfterAll();
+        easyExcelRowHandler.doAfterAll(easyExcelContext);
     }
 
 
@@ -184,7 +193,21 @@ public class XlsxRowHandler extends DefaultHandler {
 
                 Object o = rowCellList.get(key);
                 if (o != null) {
-                    field.set(obj, parseValueWithFieldType(field, o));
+
+                    if (easyExcelContext.getFastFail()) {
+                        field.set(obj, parseValueWithFieldType(field, o));
+                    } else {
+                        try {
+                            field.set(obj, parseValueWithFieldType(field, o));
+                        } catch (Exception e) {
+                            EasyExcelColumn easyExcelColumn = fieldColumnMap.get(field);
+                            ErrorInfo errorInfo = new ErrorInfo();
+                            errorInfo.setCoordinate(currCoordinate);
+                            errorInfo.setName(easyExcelColumn.name());
+                            errorInfo.setValue(o);
+                            errorInfoList.add(errorInfo);
+                        }
+                    }
                 }
             }
         } catch (IllegalAccessException | InstantiationException e) {
@@ -193,21 +216,32 @@ public class XlsxRowHandler extends DefaultHandler {
         return obj;
     }
 
+    private Map<Field, EasyExcelColumn> getFieldColumnMap() {
+        Map<Field, EasyExcelColumn> map = new HashMap<>();
 
-    private  <T> Map<Integer, Field> getCellFieldMap() {
+        for (Field field : fields) {
+            EasyExcelColumn easyExcelColumn = field.getDeclaredAnnotation(EasyExcelColumn.class);
+            if (easyExcelColumn != null) {
+                map.put(field, easyExcelColumn);
+            }
+        }
+        return map;
+    }
+
+    private Map<Integer, Field> getCellFieldMap() {
         Map<Integer, Field> fieldMap = new HashMap<>();
 
         for (Field field : fields) {
-            EasyExcelField easyExcelField = field.getAnnotation(EasyExcelField.class);
-            if (easyExcelField != null) {
-                fieldMap.put(easyExcelField.index(), field);
+            EasyExcelColumn easyExcelColumn = fieldColumnMap.get(field);
+            if (easyExcelColumn != null) {
+                fieldMap.put(easyExcelColumn.index(), field);
             }
         }
         return fieldMap;
     }
 
 
-    private Map<String, Map<String, String>> getFieldMapping() {
+    private Map<String, Map<String, String>> getFieldMappingMap() {
         Map<String, Map<String, String>> fieldMapping = new HashMap<>();
 
         for (Field field : fields) {
@@ -238,16 +272,16 @@ public class XlsxRowHandler extends DefaultHandler {
      * @return          转换后的值
      */
     private Object parseValueWithFieldType(Field field, Object obj) {
-        Map<String, String> fieldMap = fieldMapping.get(field.getName());
+        Map<String, String> fieldMap = fieldMappingMap.get(field.getName());
         if (fieldMap != null) {
             obj = fieldMap.get(obj);
         }
 
         Class<?> type = field.getType();
 
-        EasyExcelField easyExcelField = field.getDeclaredAnnotation(EasyExcelField.class);
+        EasyExcelColumn easyExcelColumn = field.getDeclaredAnnotation(EasyExcelColumn.class);
 
-        String format = easyExcelField.format();
+        String format = easyExcelColumn.format();
         // 如果是日期类型, 或字符串类型, 但标注了格式化日志的字段, 则尝试转换成日期格式.
         if (Date.class.equals(type) && ExcelParseUtil.objIsString(obj)) {
             return ExcelParseUtil.parseDate(String.valueOf(obj), format);

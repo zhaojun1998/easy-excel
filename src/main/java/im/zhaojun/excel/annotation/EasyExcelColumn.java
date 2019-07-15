@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface EasyExcelField {
+public @interface EasyExcelColumn {
 
     String[] value() default {""};
 
@@ -20,4 +20,6 @@ public @interface EasyExcelField {
      * 当单元格格式为 常规 时, 需要指定日期格式.
      */
     String format() default "yyyy-MM-dd HH:mm:ss";
+
+    String name() default "";
 }

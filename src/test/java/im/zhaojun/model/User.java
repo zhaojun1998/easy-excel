@@ -1,6 +1,6 @@
 package im.zhaojun.model;
 
-import im.zhaojun.excel.annotation.EasyExcelField;
+import im.zhaojun.excel.annotation.EasyExcelColumn;
 import im.zhaojun.excel.annotation.EasyExcelMapping;
 import im.zhaojun.excel.annotation.EasyExcelMappings;
 import im.zhaojun.excel.annotation.EasyExcelSheet;
@@ -10,20 +10,20 @@ import java.util.Date;
 @EasyExcelSheet(startRow = 1, sheetIndex = 1)
 public class User {
 
-    @EasyExcelField(index = 0)
+    @EasyExcelColumn(index = 0)
     private String username;
 
-    @EasyExcelField(index = 1)
+    @EasyExcelColumn(index = 1)
     private Integer age;
 
     @EasyExcelMappings({
         @EasyExcelMapping(key = "男", value = "1"),
         @EasyExcelMapping(key = "女", value = "0")
     })
-    @EasyExcelField(index = 2)
+    @EasyExcelColumn(index = 2)
     private Integer sex;
 
-    @EasyExcelField(index = 3, format = "yyyy年MM月dd")
+    @EasyExcelColumn(index = 4, name = "创建日期")
     private Date createTime;
 
     public String getUsername() {

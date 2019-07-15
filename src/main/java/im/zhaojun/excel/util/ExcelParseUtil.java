@@ -13,7 +13,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
-import java.util.List;
 
 public class ExcelParseUtil {
 
@@ -63,23 +62,10 @@ public class ExcelParseUtil {
         return sheet;
     }
 
-
-
     public static Date parseDate(String value, String format) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
         return Date.from(LocalDate.parse(value, formatter).atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
-
-
-    public static boolean listElementIsNull(List list) {
-        for (Object o : list) {
-            if (o != null) {
-                return false;
-            }
-        }
-        return true;
-    }
-
 
     public static String convertString(Object object) {
         return (String) object;
